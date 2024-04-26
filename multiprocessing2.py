@@ -1,11 +1,11 @@
 import os
 import re
-from threading import Thread, RLock
+from threading import Thread
 from queue import Queue
 from time import time
 
 
-def search_files(file_queue, search_words, result_dict, lock):
+def search_files(file_queue, search_words, result_dict):
     while not file_queue.empty():
         file_path = file_queue.get()
         try:
@@ -13,9 +13,7 @@ def search_files(file_queue, search_words, result_dict, lock):
                 content = file.read()
                 for word in search_words:
                     if re.search(word, content, re.IGNORECASE):
-                        with lock:
-                            if file_path not in result_dict[word]:
-                                result_dict[word].append(file_path)
+                        result_dict[word].add(file_path)
         except Exception as e:
             print(f"Error processing file: {file_path}. Error: {e}")
         file_queue.task_done()
@@ -24,8 +22,7 @@ def search_files(file_queue, search_words, result_dict, lock):
 def main(directory, search_words, num_threads):
     start_time = time()
     file_queue = Queue()
-    result_dict = {word: [] for word in search_words}
-    lock = RLock()
+    result_dict = {word: set() for word in search_words}
 
     # Collect file paths from the given directory
     file_paths = [os.path.join(directory, file) for file in os.listdir(directory) if file.endswith('.txt')]
@@ -42,7 +39,7 @@ def main(directory, search_words, num_threads):
     # Start threads
     threads = []
     for _ in range(num_threads):
-        thread = Thread(target=search_files, args=(file_queue, search_words, result_dict, lock))
+        thread = Thread(target=search_files, args=(file_queue, search_words, result_dict))
         thread.start()
         threads.append(thread)
 
@@ -53,6 +50,10 @@ def main(directory, search_words, num_threads):
     for thread in threads:
         thread.join()
 
+    # Convert sets to lists for values in result_dict
+    for key, value in result_dict.items():
+        result_dict[key] = list(value)
+
     end_time = time()
     print(f"Execution time: {end_time - start_time:.2f} seconds")
     return result_dict
@@ -60,7 +61,7 @@ def main(directory, search_words, num_threads):
 
 if __name__ == "__main__":
     directory = "files"
-    search_words = ["import", "from", "bla-bla-bla"]
+    search_words = ["Multithreading", "Multiprocessing", "Pythonka"]
     num_threads = 4
     result = main(directory, search_words, num_threads)
     print(result)
